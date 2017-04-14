@@ -70,19 +70,20 @@ func (ql *QueueListener) ListenForNewSource() {
 	fmt.Println("listening for new sources")
 	for msg := range msgs {
 		fmt.Println("new source discovered")
-		ql.ea.PublishEvent("DataSourceDiscovered", string(msg.Body))
+		queueName := string(msg.Body)
+		ql.ea.PublishEvent("DataSourceDiscovered", queueName)
 		// sourceChan is source channel of one sensor's queue
-		sourceChan, _ := ql.ch.Consume(
-			string(msg.Body), //queue string,
-			"",               //consumer string,
-			true,             //autoAck bool,
-			false,            //exclusive bool,
-			false,            //noLocal bool,
-			false,            //noWait bool,
-			nil)              //args amqp.Table)
 
-		if ql.sources[string(msg.Body)] == nil {
-			ql.sources[string(msg.Body)] = sourceChan
+		if ql.sources[queueName] == nil {
+			sourceChan, _ := ql.ch.Consume(
+				string(msg.Body), //queue string,
+				"",               //consumer string,
+				true,             //autoAck bool,
+				false,            //exclusive bool,
+				false,            //noLocal bool,
+				false,            //noWait bool,
+				nil)              //args amqp.Table)
+			ql.sources[queueName] = sourceChan
 			go ql.AddListener(sourceChan)
 		}
 	}
