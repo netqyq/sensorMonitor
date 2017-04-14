@@ -1,0 +1,19 @@
+{
+  "name": "distributed_apps_with_go",
+  "version": "1.0.0",
+  "description": "Demo project for demonstrating how to create a distributed application with Go",
+  "main": "main.go",
+  "scripts": {},
+  "keywords": [
+    "golang",
+    "pluralsight",
+    "distributed"
+  ],
+  "author": "Michael Van Sickle",
+  "license": "MIT",
+  "devDependencies": {
+    "gulp": "^3.9.0",
+    "gulp-sass": "^2.1.0",
+    "gulp-shell": "^0.4.2"
+  }
+}
