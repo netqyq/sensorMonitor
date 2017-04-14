@@ -23,6 +23,7 @@ func (ea *EventAggregator) AddListener(name string, f func(interface{})) {
 	ea.listeners[name] = append(ea.listeners[name], f)
 }
 
+// trigger event and call every event handle func
 func (ea *EventAggregator) PublishEvent(name string, eventData interface{}) {
 	if ea.listeners[name] != nil {
 		for _, r := range ea.listeners[name] {

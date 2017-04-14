@@ -14,7 +14,7 @@ const url = "amqp://guest:guest@localhost:5672"
 type QueueListener struct {
 	conn    *amqp.Connection
 	ch      *amqp.Channel
-	sources map[string]<-chan amqp.Delivery
+	sources map[string]<-chan amqp.Delivery		// soure of sensor's channels
 	ea      *EventAggregator
 }
 
@@ -71,6 +71,7 @@ func (ql *QueueListener) ListenForNewSource() {
 	for msg := range msgs {
 		fmt.Println("new source discovered")
 		ql.ea.PublishEvent("DataSourceDiscovered", string(msg.Body))
+		// sourceChan is source channel of one sensor's queue
 		sourceChan, _ := ql.ch.Consume(
 			string(msg.Body), //queue string,
 			"",               //consumer string,
@@ -82,7 +83,6 @@ func (ql *QueueListener) ListenForNewSource() {
 
 		if ql.sources[string(msg.Body)] == nil {
 			ql.sources[string(msg.Body)] = sourceChan
-
 			go ql.AddListener(sourceChan)
 		}
 	}
@@ -102,7 +102,7 @@ func (ql *QueueListener) AddListener(msgs <-chan amqp.Delivery) {
 			Timestamp: sd.Timestamp,
 			Value:     sd.Value,
 		}
-
+		// trigger the event
 		ql.ea.PublishEvent("MessageReceived_"+msg.RoutingKey, ed)
 	}
 }

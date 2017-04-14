@@ -21,6 +21,7 @@ func NewWebappConsumer(er EventRaiser) *WebappConsumer {
 	}
 
 	wc.conn, wc.ch = qutils.GetChannel(url)
+	// ? for what
 	qutils.GetQueue(qutils.PersistReadingsQueue, wc.ch, false)
 
 	go wc.ListenForDiscoveryRequests()
