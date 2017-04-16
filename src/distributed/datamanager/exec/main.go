@@ -34,6 +34,7 @@ func main() {
 		sd := &dto.SensorMessage{}
 		dec.Decode(sd)
 
+		log.Println(sd)
 		err := datamanager.SaveReading(sd)
 
 		if err != nil {
