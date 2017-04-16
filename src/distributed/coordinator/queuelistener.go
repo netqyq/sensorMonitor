@@ -16,13 +16,13 @@ type QueueListener struct {
 	ch      *amqp.Channel
 	sources map[string]<-chan amqp.Delivery		// soure of sensor's channels
 	//sources []string
-	ea      *EventAggregator
+	dc			*DatabaseConsumer
 }
 
-func NewQueueListener(ea *EventAggregator) *QueueListener {
+func NewQueueListener(dc *DatabaseConsumer) *QueueListener {
 	ql := QueueListener{
 		sources: make(map[string]<-chan amqp.Delivery),
-		ea:      ea,
+		dc: dc,
 	}
 	ql.conn, ql.ch = qutils.GetChannel(url)
 	return &ql
@@ -71,28 +71,24 @@ func (ql *QueueListener) ListenForNewSource() {
 		fmt.Println("msg"+string(msg.Body))
 		queueName := string(msg.Body)
 
-		// new sensor discovered
+		// new sensor discovered, start consume
 		if ql.sources[queueName] == nil {
-			// send message
-			//ql.ea.PublishEvent("DataSourceDiscovered", queueName)
-			//
-			//ql.ea.DiscoverNewSource(queueName)
-
-			// inform new sensor is comming
-
-			// go func(){
-			// 	ql.ea.sensors <- queueName
-			// }()
-
 			// sourceChan is source channel of one sensor's queue
 			fmt.Println("before consume new source")
-			qutils.CreateExchange(ql.ch, queueName, "fanout")
-			dataQueue := qutils.GetQueue("", ql.ch, true)
-			ql.ch.QueueBind(dataQueue.Name, // queue name
-												"",     // routing key
-												queueName, // exchange
-												false,
-												nil)
+
+			// fanout consume dataQueue
+			// qutils.CreateExchange(ql.ch, queueName, "fanout")
+			// fanout consume dataQueue
+			//
+			// dataQueue := qutils.GetQueue("", ql.ch, true)
+			// ql.ch.QueueBind(dataQueue.Name, // queue name
+			// 									"",     // routing key
+			// 									queueName, // exchange
+			// 									false,
+			// 									nil)
+
+			// direct consume dataQueue
+			dataQueue := qutils.GetQueue(queueName, ql.ch, true)
 			sourceChan, err := ql.ch.Consume(
 				dataQueue.Name, //queue string,
 				"",               //consumer string,
@@ -129,34 +125,18 @@ func (ql *QueueListener) SendToPersistQueue(msgs <-chan amqp.Delivery)  {
 		d.Decode(sd)
 
 		fmt.Printf("Received message: %v\n", sd)
-		msg.Ack(false)
-		// ed := EventData{
-		// 	Name:      sd.Name,
-		// 	Timestamp: sd.Timestamp,
-		// 	Value:     sd.Value,
-		// }
-		// trigger the event
-
-	}
-}
-
-// receive the message from sensor queue and trigger an event.
-func (ql *QueueListener) TrigEvent(msgs <-chan amqp.Delivery) {
-	for msg := range msgs {
-		r := bytes.NewReader(msg.Body)
-		d := gob.NewDecoder(r)
-		sd := new(dto.SensorMessage)
-		d.Decode(sd)
-
-		fmt.Printf("Received message: %v\n", sd)
 
 		ed := EventData{
 			Name:      sd.Name,
 			Timestamp: sd.Timestamp,
 			Value:     sd.Value,
 		}
+
+		ql.dc.PublishData(ed)
+
+		msg.Ack(false)
+
 		// trigger the event
-		//fmt.Println(msg.RoutingKey)
-		ql.ea.PublishEvent("MessageReceived_"+msg.RoutingKey, ed)
+
 	}
 }

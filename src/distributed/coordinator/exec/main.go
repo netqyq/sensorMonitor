@@ -14,17 +14,13 @@ func main() {
 	// var wg sync.WaitGroup
 	// wg.Add(1)
 
-	
 	forever := make(chan bool)
 
-	ea := coordinator.NewEventAggregator()
-	wc = coordinator.NewWebappConsumer(ea)
-	ql := coordinator.NewQueueListener(ea)
+	dc = coordinator.NewDatabaseConsumer()
+	//wc = coordinator.NewWebappConsumer()
+	ql := coordinator.NewQueueListener(dc)
 	go ql.ListenForNewSource()
-	dc = coordinator.NewDatabaseConsumer(ea)
 
-	// var a string
-	// fmt.Scanln(&a)
 
 	// wg.Wait()
 	<-forever

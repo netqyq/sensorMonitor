@@ -59,7 +59,20 @@ func main() {
 	// 3. dataQueue Setup and start send messages
 	fmt.Println("dataQueue Name: " + *name)
 
-	qutils.CreateExchange(ch, *name, "fanout")
+	// fanout dataQueue init
+	//qutils.CreateExchange(ch, *name, "fanout")
+
+	// direct dataQueue init
+	q, err := ch.QueueDeclare(
+		*name, // name
+		false,         // durable
+		true,        // delete when unused
+		false,        // exclusive
+		false,        // no-wait
+		nil,          // arguments
+	)
+	qutils.FailOnError(err, "Failed to declare a queue: "+*name)
+
 
 	dur, _ := time.ParseDuration(strconv.Itoa(1000/int(*freq)) + "ms")
 
@@ -92,13 +105,22 @@ func main() {
 		// 	false,          //immediate bool,
 		// 	msg)            //msg amqp.Publishing)
 
-		//fanout
+		//fanout publish
+		// ch.Publish(
+		// 	*name,  //exchange string,
+		// 	"",	//key string,
+		// 	false,          //mandatory bool,
+		// 	false,          //immediate bool,
+		// 	msg)            //msg amqp.Publishing)
+
+		// direct publish
 		ch.Publish(
-			*name,  //exchange string,
-			"",	//key string,
-			false,          //mandatory bool,
-			false,          //immediate bool,
-			msg)            //msg amqp.Publishing)
+				"",  //exchange string,
+				q.Name,	//key string,
+				false,          //mandatory bool,
+				false,          //immediate bool,
+				msg)            //msg amqp.Publishing)
+
 
 		log.Printf(" %s, Value: %v\n", *name, value)
 	}
