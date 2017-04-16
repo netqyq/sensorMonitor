@@ -15,6 +15,7 @@ type QueueListener struct {
 	conn    *amqp.Connection
 	ch      *amqp.Channel
 	sources map[string]<-chan amqp.Delivery		// soure of sensor's channels
+	//sources []string
 	ea      *EventAggregator
 }
 
@@ -23,73 +24,124 @@ func NewQueueListener(ea *EventAggregator) *QueueListener {
 		sources: make(map[string]<-chan amqp.Delivery),
 		ea:      ea,
 	}
-
 	ql.conn, ql.ch = qutils.GetChannel(url)
-
 	return &ql
 }
 
 func (ql *QueueListener) DiscoverSensors() {
-	ql.ch.ExchangeDeclare(
-		qutils.SensorDiscoveryExchange, //name string,
-		"fanout",                       //kind string,
-		false,                          //durable bool,
-		false,                          //autoDelete bool,
-		false,                          //internal bool,
-		false,                          //noWait bool,
-		nil)                            //args amqp.Table)
-
+	qutils.CreateExchange(ql.ch, qutils.SensorDiscovery, "fanout")
 	ql.ch.Publish(
-		qutils.SensorDiscoveryExchange, //exchange string,
+		qutils.SensorDiscovery, //exchange string,
 		"",                //key string,
 		false,             //mandatory bool,
 		false,             //immediate bool,
 		amqp.Publishing{}) //msg amqp.Publishing)
+	fmt.Println("Discovery Message Sent.")
 }
 
 func (ql *QueueListener) ListenForNewSource() {
-	q := qutils.GetQueue("", ql.ch, true)
-	ql.ch.QueueBind(
-		q.Name,       //name string,
-		"",           //key string,
-		"amq.fanout", //exchange string,
-		false,        //noWait bool,
-		nil)          //args amqp.Table)
+	// 1. consume SensorOnline queue
+	// 2. send discovery message to SensorDiscovery
+	// 3. add discovered sensorName to
+	// 4. consume the sensorName channel
+	// 5. publish to inform the data consumers, down stream reader
 
-	msgs, _ := ql.ch.Consume(
-		q.Name, //queue string,
-		"",     //consumer string,
-		true,   //autoAck bool,
-		false,  //exclusive bool,
-		false,  //noLocal bool,
-		false,  //noWait bool,
-		nil)    //args amqp.Table)
+	qutils.CreateExchange(ql.ch, qutils.SensorOnline,"fanout")
+  onlineQueue := qutils.GetQueue("", ql.ch, true)
+	ql.ch.QueueBind(onlineQueue.Name, // queue name
+		                "",     // routing key
+		                qutils.SensorOnline, // exchange
+		                false,
+		                nil)
+	msgs, err := ql.ch.Consume(
+											onlineQueue.Name, //queue string,
+											"",     //consumer string,
+											true,   //autoAck bool,
+											false,  //exclusive bool,
+											false,  //noLocal bool,
+											false,  //noWait bool,
+											nil)    //args amqp.Table)
+	qutils.FailOnError(err, "Failed to Consume" + onlineQueue.Name)
 
 	ql.DiscoverSensors()
 
 	fmt.Println("listening for new sources")
 	for msg := range msgs {
-		fmt.Println("new source discovered")
+		// sensor name or its queue name
+		fmt.Println("msg"+string(msg.Body))
 		queueName := string(msg.Body)
-		ql.ea.PublishEvent("DataSourceDiscovered", queueName)
-		// sourceChan is source channel of one sensor's queue
 
+		// new sensor discovered
 		if ql.sources[queueName] == nil {
-			sourceChan, _ := ql.ch.Consume(
-				string(msg.Body), //queue string,
+			// send message
+			//ql.ea.PublishEvent("DataSourceDiscovered", queueName)
+			//
+			//ql.ea.DiscoverNewSource(queueName)
+
+			// inform new sensor is comming
+
+			// go func(){
+			// 	ql.ea.sensors <- queueName
+			// }()
+
+			// sourceChan is source channel of one sensor's queue
+			fmt.Println("before consume new source")
+			qutils.CreateExchange(ql.ch, queueName, "fanout")
+			dataQueue := qutils.GetQueue("", ql.ch, true)
+			ql.ch.QueueBind(dataQueue.Name, // queue name
+												"",     // routing key
+												queueName, // exchange
+												false,
+												nil)
+			sourceChan, err := ql.ch.Consume(
+				dataQueue.Name, //queue string,
 				"",               //consumer string,
-				true,             //autoAck bool,
+				false,             //autoAck bool,
 				false,            //exclusive bool,
 				false,            //noLocal bool,
 				false,            //noWait bool,
 				nil)              //args amqp.Table)
+			fmt.Println("sourceChan is: ", sourceChan)
+			qutils.FailOnError(err, "consume new source failed")
+
 			ql.sources[queueName] = sourceChan
-			go ql.AddListener(sourceChan)
+			fmt.Println("new source received: "+ queueName)
+			//go ql.TrigEvent(sourceChan)
+			go ql.SendToPersistQueue(sourceChan)
+			fmt.Println("after go")
+		} else {
+			// no new sensor
+			fmt.Println("old source: "+ queueName)
 		}
 	}
 }
 
-func (ql *QueueListener) AddListener(msgs <-chan amqp.Delivery) {
+// receive meassages from sensor,
+func (ql *QueueListener) SendToPersistQueue(msgs <-chan amqp.Delivery)  {
+	// receive meassage from one sensor
+	fmt.Println("SendToPersistQueue Called")
+	fmt.Println(msgs)
+	for msg := range msgs {
+		fmt.Println("in for")
+		r := bytes.NewReader(msg.Body)
+		d := gob.NewDecoder(r)
+		sd := new(dto.SensorMessage)
+		d.Decode(sd)
+
+		fmt.Printf("Received message: %v\n", sd)
+		msg.Ack(false)
+		// ed := EventData{
+		// 	Name:      sd.Name,
+		// 	Timestamp: sd.Timestamp,
+		// 	Value:     sd.Value,
+		// }
+		// trigger the event
+
+	}
+}
+
+// receive the message from sensor queue and trigger an event.
+func (ql *QueueListener) TrigEvent(msgs <-chan amqp.Delivery) {
 	for msg := range msgs {
 		r := bytes.NewReader(msg.Body)
 		d := gob.NewDecoder(r)
@@ -104,6 +156,7 @@ func (ql *QueueListener) AddListener(msgs <-chan amqp.Delivery) {
 			Value:     sd.Value,
 		}
 		// trigger the event
+		//fmt.Println(msg.RoutingKey)
 		ql.ea.PublishEvent("MessageReceived_"+msg.RoutingKey, ed)
 	}
 }

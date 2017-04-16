@@ -3,7 +3,7 @@ package main
 import (
 	"distributed/coordinator"
 	//"fmt"
-	"sync"
+	//"sync"
 )
 
 var dc *coordinator.DatabaseConsumer
@@ -11,17 +11,21 @@ var wc *coordinator.WebappConsumer
 
 func main() {
 	// wait, like a daemon
-	var wg sync.WaitGroup
-	wg.Add(1)
+	// var wg sync.WaitGroup
+	// wg.Add(1)
+
+	
+	forever := make(chan bool)
 
 	ea := coordinator.NewEventAggregator()
-	dc = coordinator.NewDatabaseConsumer(ea)
 	wc = coordinator.NewWebappConsumer(ea)
 	ql := coordinator.NewQueueListener(ea)
 	go ql.ListenForNewSource()
+	dc = coordinator.NewDatabaseConsumer(ea)
 
 	// var a string
 	// fmt.Scanln(&a)
 
-	wg.Wait()
+	// wg.Wait()
+	<-forever
 }
