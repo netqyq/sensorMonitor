@@ -17,12 +17,14 @@ type QueueListener struct {
 	sources map[string]<-chan amqp.Delivery		// soure of sensor's channels
 	//sources []string
 	dc			*DatabaseConsumer
+	wc			*WebappConsumer
 }
 
-func NewQueueListener(dc *DatabaseConsumer) *QueueListener {
+func NewQueueListener(dc *DatabaseConsumer, wc *WebappConsumer) *QueueListener {
 	ql := QueueListener{
 		sources: make(map[string]<-chan amqp.Delivery),
 		dc: dc,
+		wc: wc,
 	}
 	ql.conn, ql.ch = qutils.GetChannel(url)
 	return &ql
@@ -101,9 +103,12 @@ func (ql *QueueListener) ListenForNewSource() {
 			qutils.FailOnError(err, "consume new source failed")
 
 			ql.sources[queueName] = sourceChan
+
+			ql.wc.sources = append(ql.wc.sources, queueName)
+			fmt.Println("ql.wc.sources: ", ql.wc.sources)
 			fmt.Println("new source received: "+ queueName)
 			//go ql.TrigEvent(sourceChan)
-			go ql.SendToPersistQueue(sourceChan)
+			go ql.SendToQueue(sourceChan)
 			fmt.Println("after go")
 		} else {
 			// no new sensor
@@ -113,9 +118,9 @@ func (ql *QueueListener) ListenForNewSource() {
 }
 
 // receive meassages from sensor,
-func (ql *QueueListener) SendToPersistQueue(msgs <-chan amqp.Delivery)  {
+func (ql *QueueListener) SendToQueue(msgs <-chan amqp.Delivery)  {
 	// receive meassage from one sensor
-	fmt.Println("SendToPersistQueue Called")
+	fmt.Println("SendToQueue Called")
 	fmt.Println(msgs)
 	for msg := range msgs {
 		fmt.Println("in for")
@@ -132,7 +137,10 @@ func (ql *QueueListener) SendToPersistQueue(msgs <-chan amqp.Delivery)  {
 			Value:     sd.Value,
 		}
 
+		// send to DatabaseConsumer
 		ql.dc.PublishData(ed)
+		// send to WebappConsumer
+		ql.wc.PublishData(ed)
 
 		msg.Ack(false)
 

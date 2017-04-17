@@ -17,8 +17,8 @@ func main() {
 	forever := make(chan bool)
 
 	dc = coordinator.NewDatabaseConsumer()
-	//wc = coordinator.NewWebappConsumer()
-	ql := coordinator.NewQueueListener(dc)
+	wc = coordinator.NewWebappConsumer()
+	ql := coordinator.NewQueueListener(dc, wc)
 	go ql.ListenForNewSource()
 
 

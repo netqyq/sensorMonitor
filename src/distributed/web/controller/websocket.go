@@ -10,6 +10,7 @@ import (
 	"github.com/streadway/amqp"
 	"net/http"
 	"sync"
+	"fmt"
 )
 
 const url = "amqp://guest:guest@localhost:5672"
@@ -38,6 +39,12 @@ func newWebsocketController() *websocketController {
 	return wsc
 }
 
+func (wsc *websocketController) discoverSensorName()  {
+	q := qutils.GetQueue(qutils.WebappDiscoveryQueue, wsc.ch, false)
+	wsc.ch.Publish("", q.Name, false, false, amqp.Publishing{})
+	fmt.Println("discovery meassge sent.")
+}
+
 func (wsc *websocketController) handleMessage(w http.ResponseWriter, r *http.Request) {
 	socket, _ := wsc.upgrader.Upgrade(w, r, nil)
 	wsc.addSocket(socket)
@@ -60,20 +67,22 @@ func (wsc *websocketController) removeSocket(socket *websocket.Conn) {
 
 		}
 	}
-
 	wsc.mutex.Unlock()
 }
 
 func (wsc *websocketController) listenForSources() {
+	fmt.Println("listen for sources called")
+	qutils.CreateExchange(wsc.ch, qutils.WebappSourceExchange, "fanout")
 	q := qutils.GetQueue("", wsc.ch, true)
-	wsc.ch.QueueBind(
+	err := wsc.ch.QueueBind(
 		q.Name, //name string,
 		"",     //key string,
 		qutils.WebappSourceExchange, //exchange string,
 		false, //noWait bool,
 		nil)   //args amqp.Table)
+	qutils.FailOnError(err, "bind failed")
 
-	msgs, _ := wsc.ch.Consume(
+	msgs, err := wsc.ch.Consume(
 		q.Name, //queue string,
 		"",     //consumer string,
 		true,   //autoAck bool,
@@ -81,9 +90,21 @@ func (wsc *websocketController) listenForSources() {
 		false,  //noLocal bool,
 		false,  //noWait bool,
 		nil)    //args amqp.Table)
+  qutils.FailOnError(err, "consume failed")
+	fmt.Println("after consume")
+	// send discovery meassage to coordinator
+	// dirct, only one coordinator response is ok.
+	// must call this after Consume is succeed
+	wsc.discoverSensorName()
+	go wsc.handleSources(msgs)
 
+}
+
+func (wsc *websocketController) handleSources(msgs <-chan amqp.Delivery)  {
 	for msg := range msgs {
+		fmt.Println("msg: ", string(msg.Body))
 		sensor, err := model.GetSensorByName(string(msg.Body))
+		fmt.Printf("Received source: %v\n", string(msg.Body))
 		if err != nil {
 			println(err.Error())
 		}
@@ -94,8 +115,11 @@ func (wsc *websocketController) listenForSources() {
 	}
 }
 
+
 func (wsc *websocketController) listenForMessages() {
+	qutils.CreateExchange(wsc.ch, qutils.WebappReadingsExchange, "fanout")
 	q := qutils.GetQueue("", wsc.ch, true)
+
 	wsc.ch.QueueBind(
 		q.Name, //name string,
 		"",     //key string,
@@ -117,6 +141,7 @@ func (wsc *websocketController) listenForMessages() {
 		dec := gob.NewDecoder(buf)
 		sm := dto.SensorMessage{}
 		err := dec.Decode(&sm)
+		fmt.Printf("Received message: %v\n", sm)
 
 		if err != nil {
 			println(err.Error())
@@ -126,6 +151,7 @@ func (wsc *websocketController) listenForMessages() {
 			Type: "reading",
 			Data: sm,
 		})
+
 	}
 }
 
@@ -145,6 +171,7 @@ func (wsc *websocketController) sendMessage(msg message) {
 	}
 }
 
+// listen for discovery request from web client(JavaScript)
 func (wsc *websocketController) listenForDiscoveryRequests(socket *websocket.Conn) {
 	for {
 		msg := message{}

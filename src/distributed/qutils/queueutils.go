@@ -6,14 +6,18 @@ import (
 	"log"
 )
 
+// saving to database, direct
 const PersistReadingsQueue = "PersistReading"
+
+// fanout exchange
 const WebappSourceExchange = "WebappSources"
+// fanout exchange
 const WebappReadingsExchange = "WebappReading"
+// fanout 
 const WebappDiscoveryQueue = "WebappDiscovery"
 
-// receive sensor name, topic
+// receive sensor name, fanout
 const SensorOnline = "SensorOnline"
-
 // for discovery message, topic
 const SensorDiscovery = "SensorDiscovery"
 

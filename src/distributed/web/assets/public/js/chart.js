@@ -18,7 +18,7 @@ function createChart(parentNode, data) {
   '       </span> - ' +
   '       <span>' +
           + data.maxSafeValue +
-'         </span>' +
+  '         </span>' +
   '        <span>' + data.unitType + '</span>' +
   '      </b>' +
   '    </div>' +
