@@ -105,6 +105,13 @@ coordinator |       |                     |           | webapp
             |  <--  |   WebappDiscovery   |    <--    |
 
 ```
+## Demo
+Monitoring Web Page
+![webPage](docs/imgs/monitor_page.gif)
+
+Daemons running
+![daemon_running](docs/imgs/daemons.gif)
+
 
 ## Liscense
 [MIT](https://opensource.org/licenses/MIT)
