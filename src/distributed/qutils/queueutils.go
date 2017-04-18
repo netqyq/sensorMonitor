@@ -13,7 +13,7 @@ const PersistReadingsQueue = "PersistReading"
 const WebappSourceExchange = "WebappSources"
 // fanout exchange
 const WebappReadingsExchange = "WebappReading"
-// fanout 
+// fanout
 const WebappDiscoveryQueue = "WebappDiscovery"
 
 // receive sensor name, fanout

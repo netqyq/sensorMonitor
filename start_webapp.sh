@@ -1,1 +1,2 @@
-go run src/distributed/web/main.go
+cd src/distributed/web/
+go run main.go

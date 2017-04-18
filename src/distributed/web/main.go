@@ -3,10 +3,11 @@ package main
 import (
 	"distributed/web/controller"
 	"net/http"
+	"fmt"
 )
 
 func main() {
 	controller.Initialize()
-
-	http.ListenAndServe(":4000", nil)
+	err := http.ListenAndServe(":4000", nil)
+	fmt.Println(err, "start server failed")
 }

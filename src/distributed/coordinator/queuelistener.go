@@ -107,6 +107,8 @@ func (ql *QueueListener) ListenForNewSource() {
 			ql.wc.sources = append(ql.wc.sources, queueName)
 			fmt.Println("ql.wc.sources: ", ql.wc.sources)
 			fmt.Println("new source received: "+ queueName)
+			ql.wc.SendMessageSource(queueName)
+			fmt.Println("send new source to WebappSources: ", queueName)
 			//go ql.TrigEvent(sourceChan)
 			go ql.SendToQueue(sourceChan)
 			fmt.Println("after go")

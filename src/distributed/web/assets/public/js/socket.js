@@ -24,5 +24,8 @@
     socket.send(JSON.stringify({
       type: 'discover'
     }));
+    console.log(JSON.stringify({
+      type: 'discover'
+    }));
   });
 })()

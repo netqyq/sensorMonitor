@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"sync"
 	"fmt"
+	"log"
 )
 
 const url = "amqp://guest:guest@localhost:5672"
@@ -39,15 +40,19 @@ func newWebsocketController() *websocketController {
 	return wsc
 }
 
-func (wsc *websocketController) discoverSensorName()  {
-	q := qutils.GetQueue(qutils.WebappDiscoveryQueue, wsc.ch, false)
-	wsc.ch.Publish("", q.Name, false, false, amqp.Publishing{})
-	fmt.Println("discovery meassge sent.")
-}
-
 func (wsc *websocketController) handleMessage(w http.ResponseWriter, r *http.Request) {
-	socket, _ := wsc.upgrader.Upgrade(w, r, nil)
+	//socket, err := wsc.upgrader.Upgrade(w, r, nil)
+
+	socket, err := websocket.Upgrade(w, r, nil,
+						wsc.upgrader.ReadBufferSize, wsc.upgrader.WriteBufferSize)
+	if err != nil {
+		log.Println("upgrade failed:", err)
+		// if do not return, socket will be nil, and program will exit
+		return
+	}
+	// defer socket.Close()
 	wsc.addSocket(socket)
+	//log.Println("after addSocket, socket is:", socket)
 	go wsc.listenForDiscoveryRequests(socket)
 }
 
@@ -96,11 +101,7 @@ func (wsc *websocketController) listenForSources() {
 	// dirct, only one coordinator response is ok.
 	// must call this after Consume is succeed
 	wsc.discoverSensorName()
-	go wsc.handleSources(msgs)
 
-}
-
-func (wsc *websocketController) handleSources(msgs <-chan amqp.Delivery)  {
 	for msg := range msgs {
 		fmt.Println("msg: ", string(msg.Body))
 		sensor, err := model.GetSensorByName(string(msg.Body))
@@ -113,6 +114,12 @@ func (wsc *websocketController) handleSources(msgs <-chan amqp.Delivery)  {
 			Data: sensor,
 		})
 	}
+}
+
+func (wsc *websocketController) discoverSensorName()  {
+	q := qutils.GetQueue(qutils.WebappDiscoveryQueue, wsc.ch, false)
+	wsc.ch.Publish("", q.Name, false, false, amqp.Publishing{})
+	fmt.Println("discovery meassge sent.")
 }
 
 
@@ -141,7 +148,7 @@ func (wsc *websocketController) listenForMessages() {
 		dec := gob.NewDecoder(buf)
 		sm := dto.SensorMessage{}
 		err := dec.Decode(&sm)
-		fmt.Printf("Received message: %v\n", sm)
+		//fmt.Printf("Received message: %v\n", sm)
 
 		if err != nil {
 			println(err.Error())
@@ -157,7 +164,7 @@ func (wsc *websocketController) listenForMessages() {
 
 func (wsc *websocketController) sendMessage(msg message) {
 	socketsToRemove := []*websocket.Conn{}
-
+	log.Println("sendMessage called")
 	for _, socket := range wsc.sockets {
 		err := socket.WriteJSON(msg)
 
@@ -178,6 +185,7 @@ func (wsc *websocketController) listenForDiscoveryRequests(socket *websocket.Con
 		err := socket.ReadJSON(&msg)
 
 		if err != nil {
+			log.Println("socket read failed: ", err)
 			wsc.removeSocket(socket)
 			break
 		}

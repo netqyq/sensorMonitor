@@ -3,3 +3,4 @@ pkg
 bin
 log
 
+./src/distributed/web/node_modules
